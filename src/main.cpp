@@ -7,6 +7,7 @@
 #include "sleep.h"
 #include <stdio.h>
 
+
 #include "inf_engine.h"
 #include "test_in.h"
 
@@ -237,11 +238,9 @@ int main()
     XTime end;
     XTime total_axi = 0;
     XTime total_hw = 0;
+    XTime fp_q_conv = 0;
 
     const size_t count = sizeof(test_inputs) / (sizeof(real_t) * 8);
-
-    // * Not neccessary because we have num. of predictions multiple of 4
-    const size_t par_last_idx = count - count % 4;
 
     CFD_Prediction_t *predictions = new CFD_Prediction_t[count];
 
@@ -249,22 +248,17 @@ int main()
     XTime_GetTime(&start);
     for (size_t x_idx = 0; x_idx < count - 4; x_idx += 4)
     {
-        XTime start_axi;
-        XTime end_axi;
         XTime start_hw;
         XTime end_hw;
 
-        XTime_GetTime(&start_axi);
         CFD_Input_t *X0 = &test_inputs[x_idx + 0];
         CFD_Input_t *X1 = &test_inputs[x_idx + 1];
         CFD_Input_t *X2 = &test_inputs[x_idx + 2];
         CFD_Input_t *X3 = &test_inputs[x_idx + 3];
-        CFD_SetInput(GET_MODEL(), X0, 0);
-        CFD_SetInput(GET_MODEL(), X1, 1);
-        CFD_SetInput(GET_MODEL(), X2, 2);
-        CFD_SetInput(GET_MODEL(), X3, 3);
-        XTime_GetTime(&end_axi);
-        total_axi += end_axi - start_axi;
+        CFD_SetInput(GET_MODEL(), X0, 0, &fp_q_conv, &total_axi);
+        CFD_SetInput(GET_MODEL(), X1, 1, &fp_q_conv, &total_axi);
+        CFD_SetInput(GET_MODEL(), X2, 2, &fp_q_conv, &total_axi);
+        CFD_SetInput(GET_MODEL(), X3, 3, &fp_q_conv, &total_axi);
 
         XTime_GetTime(&start_hw);
         CFD_StartPrediction(GET_MODEL(), INF_START_ENGINE_ALL);
@@ -272,21 +266,22 @@ int main()
         XTime_GetTime(&end_hw);
         total_hw += end_hw - start_hw;
 
-        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 0], 0);
-        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 1], 1);
-        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 2], 2);
-        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 3], 3);
+        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 0], 0, &fp_q_conv, &total_axi);
+        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 1], 1, &fp_q_conv, &total_axi);
+        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 2], 2, &fp_q_conv, &total_axi);
+        CFD_GetPredictionResult(GET_MODEL(), &predictions[x_idx + 3], 3, &fp_q_conv, &total_axi);
     }
     XTime_GetTime(&end);
 
     xil_printf(">>>> Finished predictions.\r\n");
     xil_printf(">>>>>>>>>>>> Performance <<<<<<<<<<<<\r\n");
     printf(">>>> Total CPU Clock Cycles: %llu \r\n", 2 * (end - start));
-    printf(">>>> Elapsed Time(CPU+HW+AXI): %.3fms \r\n", 1.0 * (end - start) / (COUNTS_PER_SECOND / 1000));
+    printf(">>>> Total Elapsed Time: %.3fms \r\n", 1.0 * (end - start) / (COUNTS_PER_SECOND / 1000));
     xil_printf(">>>>>>>>>>>> Breakdown <<<<<<<<<<<<\r\n");
     printf(">>>> Elapsed Time(Hardware): %.3fms \r\n", 1.0 * (total_hw) / (COUNTS_PER_SECOND / 1000));
     printf(">>>> Elapsed Time(Memory/AXI-Lite): %.3fms \r\n", 1.0 * (total_axi) / (COUNTS_PER_SECOND / 1000));
-    printf(">>>> Elapsed Time(CPU): %.3fms \r\n", 1.0 * (end - start - total_hw - total_axi) / (COUNTS_PER_SECOND / 1000));
+    printf(">>>> Elapsed Time(FP To/From Q): %.3fms \r\n", 1.0 * (fp_q_conv) / (COUNTS_PER_SECOND / 1000));
+    printf(">>>> Elapsed Time(Other): %.3fms \r\n", 1.0 * (end - start - total_hw - total_axi - fp_q_conv) / (COUNTS_PER_SECOND / 1000));
 
     UINTPTR const uart_base_addr = uart_drv.Config.BaseAddress;
     size_t const bytes_to_send_per_pred = sizeof(real_t) * 4;

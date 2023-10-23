@@ -4,6 +4,7 @@
 #include "xil_io.h"
 #include "xil_assert.h"
 #include "xuartps_hw.h"
+#include "xtime_l.h"
 #include <cmath>
 #include <stdint.h>
 
@@ -13,7 +14,7 @@
 #define INF_START_ENGINE_3_MASK 0b1000
 #define INF_START_ENGINE_ALL    0b1111
 
-using real_t = float;
+using real_t = double;
 
 typedef struct
 {
@@ -43,18 +44,18 @@ static INLINE int CFD_Mdl_ReadHwReg(CFD_Model_t *pModel, size_t reg_index)
 
 static INLINE real_t Q_to_real(int q, int frac_bits)
 {
-	return ((real_t)q) * std::pow(static_cast<real_t>(2.0), -(real_t)frac_bits);
+	return ((real_t)q) * std::pow(2.0, -(real_t)frac_bits);
 }
 
 static INLINE int real_to_Q(real_t q, int frac_bits)
 {
-	return (int)(q * std::pow(static_cast<real_t>(2.0), (real_t)frac_bits));
+	return (int)(q * std::pow(2.0, (real_t)frac_bits));
 }
 
 XStatus CFD_Init(CFD_Model_t *pModel);
-XStatus CFD_SetInput(CFD_Model_t *pModel, CFD_Input_t *pInput, size_t engine_index);
+XStatus CFD_SetInput(CFD_Model_t *pModel, CFD_Input_t *pInput, size_t engine_index, XTime* fp_q_conv, XTime* total_AXI);
 XStatus CFD_StartPrediction(CFD_Model_t *pModel, uint8_t mask);
-XStatus CFD_GetPredictionResult(CFD_Model_t *pModel, CFD_Prediction_t *pOut_pred, size_t engine_index);
+XStatus CFD_GetPredictionResult(CFD_Model_t *pModel, CFD_Prediction_t *pOut_pred, size_t engine_index, XTime* fp_q_conv, XTime* total_AXI);
 
 /// @brief Reads the status register
 int CFD_GetStatus(CFD_Model_t *pModel);
